@@ -1,0 +1,8 @@
+github.com/godbus/dbus/v5 v5.2.2 h1:TUR3TgtSVDmjiXOgAAyaZbYmIeP3DPkld3jgKGV8mXQ=
+github.com/godbus/dbus/v5 v5.2.2/go.mod h1:3AAv2+hPq5rdnr5txxxRwiGjPXamgoIHgz9FPBfOp3c=
+github.com/mirkobrombin/atomloops v0.2.8-0.20261017232814-cade9a4b94dc h1:uiUaTlkFQRcTeHx5BmP7lSBN3cFiiwUZpBarsq7nGwU=
+github.com/mirkobrombin/atomloops v0.2.8-0.20261017232814-cade9a4b94dc/go.mod h1:18MprTBFQSIFeYCnzhsK7grT9e3E7Yxao1gE+mG4bgY=
+github.com/mirkobrombin/go-foundation v1.1.1 h1:96OBbRCglZYCgi2Tu+H0/bK3JGdPDBJRCQMD/cXMu4U=
+github.com/mirkobrombin/go-foundation v1.1.1/go.mod h1:ScQBotKzuC5Lxi61Wyw0h8NaeGKsuwp4xHwPj5Mj9DY=
+golang.org/x/sys v0.41.0 h1:Ivj+2Cp/ylzLiEU89QhWblYnOE9zerudt9Ftecq2C6k=
+golang.org/x/sys v0.41.0/go.mod h1:OgkHotnGiDImocRcuBABYBEXf8A9a87e/uXjp9XT3ks=

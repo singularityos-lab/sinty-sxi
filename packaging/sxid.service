@@ -1,0 +1,14 @@
+[Unit]
+Description=SXI application manager
+Documentation=https://github.com/singularityos-lab/sinty-sxi
+Wants=dbus.service network-online.target
+After=dbus.service local-fs.target
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/sxid
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical.target

@@ -1,0 +1,30 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container: ubuntu:26.04
+    steps:
+      - name: Install dependencies
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates cryptsetup-bin erofs-utils git golang-go
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -count=1 ./...

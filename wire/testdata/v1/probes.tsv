@@ -1,0 +1,2 @@
+failure	name	recipe	bytes	sha256
+SXI_V1_RESOURCE_LIMIT	oversized-manifest-bytes	a0 + 00 * 262144	262145	2319f0bf0db5bf675164ef4d0386d6db75c20bd1189f712b00747c8039775428

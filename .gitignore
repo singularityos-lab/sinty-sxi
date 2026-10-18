@@ -1,0 +1,7 @@
+/sxi
+/sxid
+*.test
+*.out
+
+.DS_Store
+*.swp
