@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 var shareDirs = []string{
@@ -99,6 +100,22 @@ func (m *Manager) exportShare(id string) {
 			link(filepath.Join(root, "lib", "singularity", "plugins", p.Name()), filepath.Join(m.shareDir(), "singularity", "plugins", p.Name()))
 		}
 	}
+	m.touchIconThemes()
+}
+
+func (m *Manager) touchIconThemes() {
+	icons := filepath.Join(m.shareDir(), "icons")
+	themes, err := os.ReadDir(icons)
+	if err != nil {
+		return
+	}
+	now := time.Now()
+	os.Chtimes(icons, now, now)
+	for _, t := range themes {
+		if t.IsDir() {
+			os.Chtimes(filepath.Join(icons, t.Name()), now, now)
+		}
+	}
 }
 
 func (m *Manager) unexportShare(id string) {
@@ -112,4 +129,5 @@ func (m *Manager) unexportShare(id string) {
 		}
 		return nil
 	})
+	m.touchIconThemes()
 }
