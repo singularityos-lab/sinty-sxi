@@ -17,7 +17,7 @@ jobs:
         run: |
           apt-get update
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            ca-certificates cryptsetup-bin erofs-utils git golang-go
+            ca-certificates cryptsetup-bin erofs-utils git golang-go libglib2.0-bin
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:

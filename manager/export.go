@@ -41,7 +41,13 @@ func (m *Manager) export(app *Installed) error {
 		return ErrNoRelease
 	}
 	var source []byte
+	if own, err := os.ReadFile(filepath.Join(root, "share", "applications", app.ID+".desktop")); err == nil {
+		source = own
+	}
 	for _, r := range man.Resources {
+		if source != nil {
+			break
+		}
 		if strings.HasSuffix(r, ".desktop") {
 			if source, err = os.ReadFile(filepath.Join(root, r)); err != nil {
 				return err
@@ -60,6 +66,7 @@ func (m *Manager) export(app *Installed) error {
 	if err := m.exportIcon(app.ID, icon); err != nil {
 		return err
 	}
+	m.exportShare(app.ID)
 	out := rewriteDesktop(source, entry, icon, app.ID)
 	return writeAtomic(m.desktopPath(app.ID), out, 0o644)
 }
@@ -82,6 +89,7 @@ func (m *Manager) exportIcon(id, icon string) error {
 func (m *Manager) unexport(id string) {
 	os.Remove(m.desktopPath(id))
 	os.Remove(m.iconPath(id))
+	m.unexportShare(id)
 }
 
 func rewriteDesktop(source []byte, entry, icon, id string) []byte {
@@ -126,7 +134,11 @@ func rewriteDesktop(source []byte, entry, icon, id string) []byte {
 					mainExec = true
 				}
 				continue
-			case "TryExec", "Icon", "X-SXI-Application", "DBusActivatable":
+			case "Icon":
+				if icon != "" {
+					continue
+				}
+			case "TryExec", "X-SXI-Application", "DBusActivatable":
 				continue
 			}
 		}

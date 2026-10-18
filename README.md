@@ -117,7 +117,16 @@ verifies the bundle and its signatures inside. Only then does the image become
 a slot. The slot is mounted read-only at `/run/sxi/apps/ID`, and its desktop
 entry is written to `/run/sxi/share/applications`, launching the entry image
 from the mount. An SVG icon is linked into the hicolor theme under
-`/run/sxi/share/icons` so the application finds its own icon by name. The previous release stays on disk for `rollback`.
+`/run/sxi/share/icons` so the application finds its own icon by name.
+
+Applications built with the prefix `/run/sxi/apps/ID` keep the usual
+`bin`, `lib` and `share` layout, so their compiled-in paths, translations and
+data point into their own mount. sxid links their icons, D-Bus services,
+Singularity search providers, app settings, capabilities, share targets, file
+actions, widgets and shell plugins into `/run/sxi/share`, which comes after the
+system data directories, so an application never replaces a system file. A
+D-Bus service is only linked when the name it activates belongs to the
+application. The previous release stays on disk for `rollback`.
 
 GSettings schemas listed as resources are compiled into
 `/run/sxi/share/glib-2.0/schemas`. Each schema, enum and flags ID must be the

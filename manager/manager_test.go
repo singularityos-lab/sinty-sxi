@@ -54,6 +54,16 @@ func (p *publisher) release(t *testing.T, sequence uint64, text string) index.Re
 	os.WriteFile(filepath.Join(payload, "Resources/hello.desktop"), []byte("[Desktop Entry]\nType=Application\nName=Hello\nExec=main %U\nIcon=hello\nTryExec=main\n\n[Desktop Action new]\nName=New\nExec=main --new\n"), 0o644)
 	os.WriteFile(filepath.Join(payload, "Icons/hello.svg"), []byte("<svg/>"), 0o644)
 	os.WriteFile(filepath.Join(payload, "Resources/dev.sinty.hello.gschema.xml"), []byte(`<schemalist><schema id="dev.sinty.hello" path="/dev/sinty/hello/"><key name="greeting" type="s"><default>'`+text+`'</default></key></schema></schemalist>`), 0o644)
+	for path, content := range map[string]string{
+		"share/dbus-1/services/dev.sinty.hello.service":                  "[D-BUS Service]\nName=dev.sinty.hello\nExec=/x\n",
+		"share/dbus-1/services/org.freedesktop.Notifications.service":    "[D-BUS Service]\nName=org.freedesktop.Notifications\nExec=/x\n",
+		"share/singularity/search-providers/dev.sinty.hello.ini":         "[Search Provider]\n",
+		"share/icons/hicolor/scalable/apps/dev.sinty.hello-symbolic.svg": "<svg/>",
+		"lib/singularity/plugins/hello/hello.plugin":                     "[Plugin]\n",
+	} {
+		os.MkdirAll(filepath.Join(payload, filepath.Dir(path)), 0o755)
+		os.WriteFile(filepath.Join(payload, path), []byte(content), 0o644)
+	}
 	os.WriteFile(filepath.Join(payload, "Resources/evil.gschema.xml"), []byte(`<schemalist><schema id="dev.sinty.desktop" path="/dev/sinty/desktop/"/></schemalist>`), 0o644)
 	dir := filepath.Join(t.TempDir(), "Hello.sxi")
 	t.Cleanup(func() { bundle.Unseal(dir) })
@@ -190,6 +200,20 @@ func TestInstallUpdateRollbackRemove(t *testing.T) {
 		if err != nil || strings.TrimSpace(string(out)) != "'one'" {
 			t.Fatalf("gsettings = %s, %v", out, err)
 		}
+		share := filepath.Join(base, "run", "share")
+		for _, rel := range []string{
+			"dbus-1/services/dev.sinty.hello.service",
+			"singularity/search-providers/dev.sinty.hello.ini",
+			"icons/hicolor/scalable/apps/dev.sinty.hello-symbolic.svg",
+			"singularity/plugins/hello",
+		} {
+			if target, err := os.Readlink(filepath.Join(share, rel)); err != nil || !strings.HasPrefix(target, mount+"/") {
+				t.Errorf("%s exported as %q, %v", rel, target, err)
+			}
+		}
+		if _, err := os.Lstat(filepath.Join(share, "dbus-1/services/org.freedesktop.Notifications.service")); err == nil {
+			t.Error("a service outside the application was exported")
+		}
 		exported, _ := os.ReadFile(schemas[0])
 		if strings.Contains(string(exported), "dev.sinty.desktop") {
 			t.Fatal("the foreign schema was exported")
@@ -235,6 +259,9 @@ func TestInstallUpdateRollbackRemove(t *testing.T) {
 	}
 	if _, err := os.Stat(mount); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("mount left behind: %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(base, "run", "share", "singularity/search-providers/dev.sinty.hello.ini")); err == nil {
+		t.Fatal("exported files left behind")
 	}
 	images, _ := filepath.Glob(filepath.Join(base, "state", "images", "*"))
 	if len(images) != 0 {

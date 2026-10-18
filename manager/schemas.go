@@ -76,7 +76,14 @@ func (m *Manager) appSchemas(id string) [][]byte {
 		return nil
 	}
 	var out [][]byte
-	for _, r := range man.Resources {
+	candidates := append([]string(nil), man.Resources...)
+	own, _ := filepath.Glob(filepath.Join(root, "share", "glib-2.0", "schemas", "*.gschema.xml"))
+	for _, path := range own {
+		if rel, err := filepath.Rel(root, path); err == nil && !contains(candidates, rel) {
+			candidates = append(candidates, rel)
+		}
+	}
+	for _, r := range candidates {
 		if !strings.HasSuffix(r, ".gschema.xml") {
 			continue
 		}
@@ -123,4 +130,13 @@ func (m *Manager) exportSchemas() error {
 		return fmt.Errorf("manager: glib-compile-schemas: %v: %s", err, output)
 	}
 	return nil
+}
+
+func contains(list []string, value string) bool {
+	for _, v := range list {
+		if v == value {
+			return true
+		}
+	}
+	return false
 }
