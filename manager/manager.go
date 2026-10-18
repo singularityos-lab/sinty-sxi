@@ -24,17 +24,18 @@ import (
 )
 
 var (
-	ErrUnknownApp   = errors.New("sxi: the application is not in any collection")
-	ErrNoRelease    = errors.New("sxi: no release for this architecture")
-	ErrUpToDate     = errors.New("sxi: the newest release is already installed")
-	ErrNotInstalled = errors.New("sxi: the application is not installed")
-	ErrNoPrevious   = errors.New("sxi: there is no previous release to go back to")
-	ErrMismatch     = errors.New("sxi: the download does not match the collection")
+	ErrUnknownApp   = errors.New("manager: the application is not in any collection")
+	ErrNoRelease    = errors.New("manager: no release for this architecture")
+	ErrUpToDate     = errors.New("manager: the newest release is already installed")
+	ErrNotInstalled = errors.New("manager: the application is not installed")
+	ErrNoPrevious   = errors.New("manager: there is no previous release to go back to")
+	ErrMismatch     = errors.New("manager: the download does not match the collection")
 )
 
 type Source struct {
-	Name string `json:"name"`
-	URL  string `json:"url"`
+	Name     string `json:"name"`
+	URL      string `json:"url"`
+	Official bool   `json:"official,omitempty"`
 }
 
 type Mounter interface {
@@ -69,6 +70,7 @@ type Progress func(stage string, done, total int64)
 type Available struct {
 	index.App
 	Source    string `json:"source"`
+	Official  bool   `json:"official"`
 	Installed *Slot  `json:"installed,omitempty"`
 }
 
@@ -190,14 +192,14 @@ func (m *Manager) get(ctx context.Context, url string, limit int64) ([]byte, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("sxi: %s: %s", url, resp.Status)
+		return nil, fmt.Errorf("manager: %s: %s", url, resp.Status)
 	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
 	if err != nil {
 		return nil, err
 	}
 	if int64(len(data)) > limit {
-		return nil, fmt.Errorf("sxi: %s is larger than %d bytes", url, limit)
+		return nil, fmt.Errorf("manager: %s is larger than %d bytes", url, limit)
 	}
 	return data, nil
 }
@@ -254,9 +256,13 @@ func (m *Manager) Available() []Available {
 		names = append(names, name)
 	}
 	sort.Strings(names)
+	official := map[string]bool{}
+	for _, src := range m.cfg.Sources {
+		official[src.Name] = src.Official
+	}
 	for _, name := range names {
 		for _, app := range m.indexes[name].Index.Apps {
-			a := Available{App: app, Source: name}
+			a := Available{App: app, Source: name, Official: official[name]}
 			if inst := m.reg.Apps[app.ID]; inst != nil && inst.Source == name {
 				slot := inst.Active
 				a.Installed = &slot
@@ -298,7 +304,7 @@ func (m *Manager) download(ctx context.Context, r *index.Release, dest string, p
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("sxi: %s: %s", r.URL, resp.Status)
+		return fmt.Errorf("manager: %s: %s", r.URL, resp.Status)
 	}
 	f, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {

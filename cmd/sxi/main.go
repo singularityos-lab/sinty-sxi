@@ -29,6 +29,7 @@ commands:
   verify    check a bundle against trusted publisher roots
   pack      write a verified bundle as an erofs image
   inspect   print the manifest of a bundle or a manifest file
+  index     create, update and sign a collection index
 
 system commands, through sxid:
   list [-installed]  show the collections or the installed applications
@@ -51,6 +52,7 @@ func main() {
 		"verify":   verify,
 		"pack":     pack,
 		"inspect":  inspect,
+		"index":    indexCommand,
 		"list":     list,
 		"refresh":  refresh,
 		"install":  waitFor("Install"),

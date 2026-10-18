@@ -13,7 +13,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -26,57 +25,6 @@ import (
 )
 
 var now = time.Unix(1_800_000_000, 0)
-
-type extractMounter struct {
-	mu      sync.Mutex
-	mounted map[string]string
-}
-
-func (e *extractMounter) Mount(imagePath, hashPath string, rootHash [32]byte, name, target string, exec bool) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	hash, err := os.ReadFile(hashPath)
-	if err != nil {
-		return err
-	}
-	f, err := os.Open(imagePath)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	info, _ := f.Stat()
-	sb := hash[:4096]
-	var salt [32]byte
-	copy(salt[:], sb[88:120])
-	var uuid [16]byte
-	copy(uuid[:], sb[16:32])
-	v, err := image.Format(f, info.Size(), salt, uuid)
-	if err != nil {
-		return err
-	}
-	if v.RootHash != rootHash || string(v.Tree) != string(hash) {
-		return image.ErrVerity
-	}
-	if _, ok := e.mounted[name]; ok {
-		return fmt.Errorf("%s is already mapped", name)
-	}
-	if err := image.Extract(imagePath, target); err != nil {
-		return err
-	}
-	e.mounted[name] = target
-	return nil
-}
-
-func (e *extractMounter) Release(name, target string, backing ...string) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	delete(e.mounted, name)
-	if _, err := os.Stat(target); err == nil {
-		bundle.Unseal(target)
-		return os.RemoveAll(target)
-	}
-	return nil
-}
 
 type publisher struct {
 	root     ed25519.PublicKey
@@ -176,7 +124,7 @@ func setup(t *testing.T) (*Manager, *publisher, *httptest.Server, string) {
 	m, err := New(Config{
 		Roots: roots, State: filepath.Join(base, "state"), Run: run,
 		Sources: []Source{{Name: "test", URL: server.URL}}, Arch: "amd64",
-		Mounter: &extractMounter{mounted: map[string]string{}}, Now: func() time.Time { return now },
+		Mounter: &ExtractMounter{}, Now: func() time.Time { return now },
 	})
 	if err != nil {
 		t.Fatal(err)

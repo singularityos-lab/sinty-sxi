@@ -16,7 +16,11 @@ const (
 )
 
 func daemon() (*dbus.Conn, dbus.BusObject, error) {
-	conn, err := dbus.ConnectSystemBus()
+	connect := dbus.ConnectSystemBus
+	if os.Getenv("SXI_BUS") == "session" {
+		connect = dbus.ConnectSessionBus
+	}
+	conn, err := connect()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -125,15 +129,19 @@ func waitFor(method string) func([]string) error {
 		if method != "Install" {
 			return nil
 		}
+		progressed := false
 		for sig := range signals {
 			switch sig.Name {
 			case busName + ".Progress":
 				if len(sig.Body) == 4 && sig.Body[0] == id {
 					fmt.Fprintf(os.Stderr, "\r%s %v/%v   ", sig.Body[1], sig.Body[2], sig.Body[3])
+					progressed = true
 				}
 			case busName + ".Finished":
 				if len(sig.Body) == 2 && sig.Body[0] == id {
-					fmt.Fprintln(os.Stderr)
+					if progressed {
+						fmt.Fprintln(os.Stderr)
+					}
 					if message, _ := sig.Body[1].(string); message != "" {
 						return errors.New(message)
 					}

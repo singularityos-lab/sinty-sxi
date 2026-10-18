@@ -122,8 +122,12 @@ Sources are JSON files in `/usr/share/sinty/sxi/sources.d` and
 `/etc/sinty/sxi/sources.d`:
 
 ```json
-{"name": "collection", "url": "https://example.org/collection"}
+{"name": "collection", "url": "https://example.org/collection", "official": true}
 ```
+
+`official` marks the collection the system itself vouches for. It only counts
+in `/usr/share/sinty/sxi/sources.d`, which is part of the verified system
+image; a source added under `/etc` is never official.
 
 Publisher roots are `*.pub` files in `/usr/share/sinty/sxi/roots`. State lives
 in `/var/lib/sinty/sxi`.
@@ -158,7 +162,26 @@ sxi pack -roots roots -o app.sxi App.sxi
 ```
 
 `pack` prints the size, digest, verity root hash and slot ID that go into the
-collection index.
+collection index:
+
+```sh
+sxi keygen -o index
+sxi delegate -root root.key -key index.pub -purpose index -o index.certs
+sxi index init -root root.pub -name "My collection" -o index.json
+sxi index add -index index.json -pack app.json -url https://example.org/app-1.sxi -name App
+sxi index sign -index index.json -key index.key -certs index.certs -root root.pub
+```
+
+Every `add` and `remove` raises the index sequence. `sign` checks the signed
+result against the root before it writes `index.json.cose` and `index.certs`.
+
+## Development
+
+`sxid -session -extract -roots DIR -state DIR -run DIR -sources DIR` serves on
+the session bus and extracts images into the runtime directory instead of
+mounting them, after checking their verity root hash in user space. It needs
+no root and is meant for working on clients. `SXI_BUS=session sxi list` talks
+to it.
 
 ## Not yet implemented
 

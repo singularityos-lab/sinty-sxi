@@ -27,6 +27,7 @@ const (
 	interfaceName = "dev.sinty.SXI1"
 	uidMin        = 1000
 	uidMax        = 60000
+	systemSources = "/usr/share/sinty/sxi/sources.d"
 )
 
 type service struct {
@@ -52,6 +53,9 @@ func loadSources(dirs ...string) ([]manager.Source, error) {
 			}
 			if src.Name == "" || src.URL == "" {
 				return nil, fmt.Errorf("%s: name and url are required", name)
+			}
+			if dir != systemSources {
+				src.Official = false
 			}
 			byName[src.Name] = src
 		}
@@ -225,20 +229,35 @@ func main() {
 	state := flag.String("state", "/var/lib/sinty/sxi", "state directory")
 	run := flag.String("run", "/run/sxi", "runtime directory")
 	interval := flag.Duration("refresh", 6*time.Hour, "collection refresh interval, 0 disables")
+	sources := flag.String("sources", "", "extra directory of collection sources")
+	session := flag.Bool("session", false, "serve on the session bus, for development")
+	extract := flag.Bool("extract", false, "extract images instead of mounting them, for development without root")
 	flag.Parse()
 	log.SetFlags(0)
-	sources, err := loadSources("/usr/share/sinty/sxi/sources.d", "/etc/sinty/sxi/sources.d")
+	dirs := []string{systemSources, "/etc/sinty/sxi/sources.d"}
+	if *sources != "" {
+		dirs = append(dirs, *sources)
+	}
+	list, err := loadSources(dirs...)
 	if err != nil {
 		log.Fatal(err)
 	}
-	m, err := manager.New(manager.Config{Roots: *roots, State: *state, Run: *run, Sources: sources})
+	cfg := manager.Config{Roots: *roots, State: *state, Run: *run, Sources: list}
+	if *extract {
+		cfg.Mounter = &manager.ExtractMounter{}
+	}
+	m, err := manager.New(cfg)
 	if err != nil {
 		log.Fatal(err)
 	}
 	if err := m.Start(); err != nil {
 		log.Printf("start: %v", err)
 	}
-	conn, err := dbus.ConnectSystemBus()
+	connect := dbus.ConnectSystemBus
+	if *session {
+		connect = dbus.ConnectSessionBus
+	}
+	conn, err := connect()
 	if err != nil {
 		log.Fatal(err)
 	}
