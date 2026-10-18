@@ -37,7 +37,7 @@ type service struct {
 	busy    map[string]bool
 }
 
-func loadSources(dirs ...string) ([]manager.Source, error) {
+func loadSources(system string, dirs ...string) ([]manager.Source, error) {
 	byName := map[string]manager.Source{}
 	for _, dir := range dirs {
 		names, _ := filepath.Glob(filepath.Join(dir, "*.json"))
@@ -54,7 +54,7 @@ func loadSources(dirs ...string) ([]manager.Source, error) {
 			if src.Name == "" || src.URL == "" {
 				return nil, fmt.Errorf("%s: name and url are required", name)
 			}
-			if dir != systemSources {
+			if dir != system {
 				src.Official = false
 			}
 			byName[src.Name] = src
@@ -230,15 +230,16 @@ func main() {
 	run := flag.String("run", "/run/sxi", "runtime directory")
 	interval := flag.Duration("refresh", 6*time.Hour, "collection refresh interval, 0 disables")
 	sources := flag.String("sources", "", "extra directory of collection sources")
+	system := flag.String("system-sources", systemSources, "collection sources shipped with the system image")
 	session := flag.Bool("session", false, "serve on the session bus, for development")
 	extract := flag.Bool("extract", false, "extract images instead of mounting them, for development without root")
 	flag.Parse()
 	log.SetFlags(0)
-	dirs := []string{systemSources, "/etc/sinty/sxi/sources.d"}
+	dirs := []string{*system, "/etc/sinty/sxi/sources.d"}
 	if *sources != "" {
 		dirs = append(dirs, *sources)
 	}
-	list, err := loadSources(dirs...)
+	list, err := loadSources(*system, dirs...)
 	if err != nil {
 		log.Fatal(err)
 	}
