@@ -57,12 +57,31 @@ func (m *Manager) export(app *Installed) error {
 		icon = filepath.Join(root, i)
 		break
 	}
+	if err := m.exportIcon(app.ID, icon); err != nil {
+		return err
+	}
 	out := rewriteDesktop(source, entry, icon, app.ID)
 	return writeAtomic(m.desktopPath(app.ID), out, 0o644)
 }
 
+func (m *Manager) iconPath(id string) string {
+	return filepath.Join(m.cfg.Run, "share", "icons", "hicolor", "scalable", "apps", id+".svg")
+}
+
+func (m *Manager) exportIcon(id, icon string) error {
+	os.Remove(m.iconPath(id))
+	if icon == "" || !strings.HasSuffix(icon, ".svg") {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(m.iconPath(id)), 0o755); err != nil {
+		return err
+	}
+	return os.Symlink(icon, m.iconPath(id))
+}
+
 func (m *Manager) unexport(id string) {
 	os.Remove(m.desktopPath(id))
+	os.Remove(m.iconPath(id))
 }
 
 func rewriteDesktop(source []byte, entry, icon, id string) []byte {

@@ -172,6 +172,9 @@ func TestInstallUpdateRollbackRemove(t *testing.T) {
 			t.Errorf("desktop file lacks %q:\n%s", w, desktop)
 		}
 	}
+	if target, err := os.Readlink(filepath.Join(base, "run", "share", "icons", "hicolor", "scalable", "apps", "dev.sinty.hello.svg")); err != nil || target != filepath.Join(mount, "Icons/hello.svg") {
+		t.Errorf("themed icon = %q, %v", target, err)
+	}
 	if strings.Contains(string(desktop), "TryExec") || strings.Contains(string(desktop), "Icon=hello\n") {
 		t.Errorf("desktop file kept publisher paths:\n%s", desktop)
 	}

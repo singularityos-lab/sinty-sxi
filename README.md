@@ -116,7 +116,8 @@ its root hash, maps the image through dm-verity, mounts it without exec, and
 verifies the bundle and its signatures inside. Only then does the image become
 a slot. The slot is mounted read-only at `/run/sxi/apps/ID`, and its desktop
 entry is written to `/run/sxi/share/applications`, launching the entry image
-from the mount. The previous release stays on disk for `rollback`.
+from the mount. An SVG icon is linked into the hicolor theme under
+`/run/sxi/share/icons` so the application finds its own icon by name. The previous release stays on disk for `rollback`.
 
 GSettings schemas listed as resources are compiled into
 `/run/sxi/share/glib-2.0/schemas`. Each schema, enum and flags ID must be the
@@ -146,7 +147,7 @@ in `/var/lib/sinty/sxi`.
 | --- | --- |
 | `ListAvailable() -> s` | the applications of every collection, as JSON |
 | `ListInstalled() -> s` | the installed applications, as JSON |
-| `Refresh()` | fetch every collection again |
+| `Refresh()` | fetch every collection again; sxid also refreshes on its own, retrying every few seconds until the network is up |
 | `Install(s id)` | install or update; progress arrives as signals |
 | `Remove(s id)` | remove an application and its images |
 | `Rollback(s id)` | switch back to the previous release |

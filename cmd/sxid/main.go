@@ -279,19 +279,27 @@ func main() {
 	if reply != dbus.RequestNameReplyPrimaryOwner {
 		log.Fatalf("%s is owned by another process", busName)
 	}
-	refresh := func() {
+	refresh := func() bool {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
-		if err := m.Refresh(ctx); err != nil {
+		err := m.Refresh(ctx)
+		if err != nil {
 			log.Printf("refresh: %v", err)
 		}
 		s.changed()
+		return err == nil
 	}
 	if *interval > 0 {
 		go func() {
-			refresh()
-			for range time.Tick(*interval) {
-				refresh()
+			retry := 15 * time.Second
+			for {
+				if refresh() {
+					retry = 15 * time.Second
+					time.Sleep(*interval)
+					continue
+				}
+				time.Sleep(retry)
+				retry = min(retry*2, *interval)
 			}
 		}()
 	}
