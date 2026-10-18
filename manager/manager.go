@@ -135,6 +135,9 @@ func mapName(slot string) string {
 func (m *Manager) Start() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if err := os.MkdirAll(m.applicationsDir(), 0o755); err != nil {
+		return err
+	}
 	var errs []error
 	for _, app := range m.reg.list() {
 		if err := m.activate(&app); err != nil {
