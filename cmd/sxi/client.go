@@ -16,6 +16,9 @@ const (
 )
 
 func daemon() (*dbus.Conn, dbus.BusObject, error) {
+	if os.Getenv("DBUS_SYSTEM_BUS_ADDRESS") == "" {
+		os.Setenv("DBUS_SYSTEM_BUS_ADDRESS", "unix:path=/run/dbus/system_bus_socket")
+	}
 	connect := dbus.ConnectSystemBus
 	if os.Getenv("SXI_BUS") == "session" {
 		connect = dbus.ConnectSessionBus

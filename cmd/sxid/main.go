@@ -235,6 +235,9 @@ func main() {
 	extract := flag.Bool("extract", false, "extract images instead of mounting them, for development without root")
 	flag.Parse()
 	log.SetFlags(0)
+	if os.Getenv("DBUS_SYSTEM_BUS_ADDRESS") == "" {
+		os.Setenv("DBUS_SYSTEM_BUS_ADDRESS", "unix:path=/run/dbus/system_bus_socket")
+	}
 	dirs := []string{*system, "/etc/sinty/sxi/sources.d"}
 	if *sources != "" {
 		dirs = append(dirs, *sources)
