@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -143,6 +144,9 @@ func (m *Manager) Start() error {
 		if err := m.activate(&app); err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", app.ID, err))
 		}
+	}
+	if err := m.exportSchemas(); err != nil {
+		errs = append(errs, err)
 	}
 	return errors.Join(errs...)
 }
@@ -443,7 +447,10 @@ func (m *Manager) Install(ctx context.Context, id string, progress Progress) err
 	if progress != nil {
 		progress("activate", 1, 1)
 	}
-	return m.activate(next)
+	if err := m.activate(next); err != nil {
+		return err
+	}
+	return m.exportSchemas()
 }
 
 func hasEntry(man *wire.Manifest, arch string) bool {
@@ -467,6 +474,9 @@ func (m *Manager) Remove(id string) error {
 	delete(m.reg.Apps, id)
 	if err := m.reg.save(); err != nil {
 		return err
+	}
+	if err := m.exportSchemas(); err != nil {
+		log.Printf("schemas: %v", err)
 	}
 	for _, slot := range []*Slot{&app.Active, app.Previous} {
 		if slot != nil {
@@ -493,7 +503,10 @@ func (m *Manager) Rollback(id string) error {
 	if err := m.reg.save(); err != nil {
 		return err
 	}
-	return m.activate(app)
+	if err := m.activate(app); err != nil {
+		return err
+	}
+	return m.exportSchemas()
 }
 
 func (m *Manager) MarshalState() ([]byte, error) {

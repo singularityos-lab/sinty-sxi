@@ -118,6 +118,12 @@ a slot. The slot is mounted read-only at `/run/sxi/apps/ID`, and its desktop
 entry is written to `/run/sxi/share/applications`, launching the entry image
 from the mount. The previous release stays on disk for `rollback`.
 
+GSettings schemas listed as resources are compiled into
+`/run/sxi/share/glib-2.0/schemas`. Each schema, enum and flags ID must be the
+application ID or start with it, and each path must sit under the path made
+from the application ID, so an application can never redefine the settings of
+the system or of another application.
+
 Sources are JSON files in `/usr/share/sinty/sxi/sources.d` and
 `/etc/sinty/sxi/sources.d`:
 

@@ -53,12 +53,14 @@ func (p *publisher) release(t *testing.T, sequence uint64, text string) index.Re
 	os.WriteFile(filepath.Join(payload, "Images/amd64/main"), []byte("#!/bin/sh\necho "+text+"\n"), 0o755)
 	os.WriteFile(filepath.Join(payload, "Resources/hello.desktop"), []byte("[Desktop Entry]\nType=Application\nName=Hello\nExec=main %U\nIcon=hello\nTryExec=main\n\n[Desktop Action new]\nName=New\nExec=main --new\n"), 0o644)
 	os.WriteFile(filepath.Join(payload, "Icons/hello.svg"), []byte("<svg/>"), 0o644)
+	os.WriteFile(filepath.Join(payload, "Resources/dev.sinty.hello.gschema.xml"), []byte(`<schemalist><schema id="dev.sinty.hello" path="/dev/sinty/hello/"><key name="greeting" type="s"><default>'`+text+`'</default></key></schema></schemalist>`), 0o644)
+	os.WriteFile(filepath.Join(payload, "Resources/evil.gschema.xml"), []byte(`<schemalist><schema id="dev.sinty.desktop" path="/dev/sinty/desktop/"/></schemalist>`), 0o644)
 	dir := filepath.Join(t.TempDir(), "Hello.sxi")
 	t.Cleanup(func() { bundle.Unseal(dir) })
 	v, err := bundle.Build(payload, dir, bundle.Spec{
 		ApplicationID: "dev.sinty.hello", DisplayName: "Hello", ReleaseVersion: fmt.Sprint(sequence), ReleaseSequence: sequence,
 		EntryPoints: []wire.EntryPoint{{Architecture: wire.AMD64, ImagePath: "Images/amd64/main", Personality: wire.Linux}},
-		Resources:   []string{"Resources/hello.desktop"},
+		Resources:   []string{"Resources/dev.sinty.hello.gschema.xml", "Resources/evil.gschema.xml", "Resources/hello.desktop"},
 		Icons:       []string{"Icons/hello.svg"},
 		State:       wire.StatePolicy{Current: 1, MinimumReadable: 1, MaximumReadable: 1},
 	}, bundle.Signing{Root: p.root, Leaf: p.leaf, Certs: p.certs}, now)
@@ -175,6 +177,20 @@ func TestInstallUpdateRollbackRemove(t *testing.T) {
 	}
 	if err := m.Install(ctx, "dev.sinty.hello", nil); !errors.Is(err, ErrUpToDate) {
 		t.Fatalf("reinstall: %v", err)
+	}
+	schemas, _ := filepath.Glob(filepath.Join(base, "run", "share", "glib-2.0", "schemas", "*"))
+	if _, err := exec.LookPath("glib-compile-schemas"); err == nil {
+		if len(schemas) != 2 || filepath.Base(schemas[1]) != "gschemas.compiled" {
+			t.Fatalf("exported schemas = %v", schemas)
+		}
+		out, err := exec.Command("gsettings", "--schemadir", filepath.Dir(schemas[0]), "get", "dev.sinty.hello", "greeting").CombinedOutput()
+		if err != nil || strings.TrimSpace(string(out)) != "'one'" {
+			t.Fatalf("gsettings = %s, %v", out, err)
+		}
+		exported, _ := os.ReadFile(schemas[0])
+		if strings.Contains(string(exported), "dev.sinty.desktop") {
+			t.Fatal("the foreign schema was exported")
+		}
 	}
 
 	second := p.release(t, 2, "two")
