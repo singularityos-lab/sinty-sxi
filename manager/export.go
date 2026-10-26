@@ -67,6 +67,8 @@ func (m *Manager) export(app *Installed) error {
 		return err
 	}
 	m.exportShare(app.ID)
+	m.unexportAutostart(app.ID)
+	m.exportAutostart(app.ID, entry, icon)
 	out := rewriteDesktop(source, entry, icon, app.ID)
 	return writeAtomic(m.desktopPath(app.ID), out, 0o644)
 }
@@ -90,6 +92,7 @@ func (m *Manager) unexport(id string) {
 	os.Remove(m.desktopPath(id))
 	os.Remove(m.iconPath(id))
 	m.unexportShare(id)
+	m.unexportAutostart(id)
 }
 
 func rewriteDesktop(source []byte, entry, icon, id string) []byte {

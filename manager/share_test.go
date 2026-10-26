@@ -3,6 +3,7 @@ package manager
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -35,5 +36,31 @@ func TestExportShareRefreshesIconThemes(t *testing.T) {
 	info, _ = os.Stat(theme)
 	if !info.ModTime().After(old.Add(time.Minute)) {
 		t.Fatalf("theme directory not refreshed after removal: %v", info.ModTime())
+	}
+}
+
+func TestAutostartEntriesFollowTheApplication(t *testing.T) {
+	run := t.TempDir()
+	m := &Manager{cfg: Config{Run: run}}
+	id := "org.example.tasks"
+	dir := filepath.Join(m.appMount(id), "etc", "xdg", "autostart")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, id+".reminders.desktop"), []byte("[Desktop Entry]\nType=Application\nName=Reminders\nExec=tasks --background\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "org.other.desktop"), []byte("[Desktop Entry]\nType=Application\nName=Other\nExec=other\n"), 0o644)
+	entry := filepath.Join(m.appMount(id), "bin", "tasks")
+	m.exportAutostart(id, entry, "")
+	data, err := os.ReadFile(filepath.Join(m.autostartDir(), id+".reminders.desktop"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "Exec="+entry+" --background\n") || !strings.Contains(string(data), "X-SXI-Application="+id+"\n") {
+		t.Fatalf("unexpected entry:\n%s", data)
+	}
+	if _, err := os.Stat(filepath.Join(m.autostartDir(), "org.other.desktop")); err == nil {
+		t.Fatal("an entry named after another application was exported")
+	}
+	m.unexport(id)
+	if _, err := os.Stat(filepath.Join(m.autostartDir(), id+".reminders.desktop")); err == nil {
+		t.Fatal("autostart entry left behind after removal")
 	}
 }
