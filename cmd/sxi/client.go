@@ -57,7 +57,8 @@ func list(args []string) error {
 				Sequence uint64 `json:"sequence"`
 			} `json:"active"`
 			Previous *struct {
-				Version string `json:"version"`
+				Version  string `json:"version"`
+				Sequence uint64 `json:"sequence"`
 			} `json:"previous"`
 		}
 		if err := json.Unmarshal([]byte(data), &apps); err != nil {
@@ -67,9 +68,9 @@ func list(args []string) error {
 		for _, a := range apps {
 			previous := "-"
 			if a.Previous != nil {
-				previous = a.Previous.Version
+				previous = release(a.Previous.Version, a.Previous.Sequence)
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", a.ID, a.Name, a.Active.Version, previous, a.Source)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", a.ID, a.Name, release(a.Active.Version, a.Active.Sequence), previous, a.Source)
 		}
 		return nil
 	}
@@ -78,10 +79,12 @@ func list(args []string) error {
 		Name     string `json:"name"`
 		Source   string `json:"source"`
 		Releases []struct {
-			Version string `json:"version"`
+			Version  string `json:"version"`
+			Sequence uint64 `json:"sequence"`
 		} `json:"releases"`
 		Installed *struct {
-			Version string `json:"version"`
+			Version  string `json:"version"`
+			Sequence uint64 `json:"sequence"`
 		} `json:"installed"`
 	}
 	if err := json.Unmarshal([]byte(data), &apps); err != nil {
@@ -91,14 +94,18 @@ func list(args []string) error {
 	for _, a := range apps {
 		latest, installed := "-", "-"
 		if len(a.Releases) > 0 {
-			latest = a.Releases[0].Version
+			latest = release(a.Releases[0].Version, a.Releases[0].Sequence)
 		}
 		if a.Installed != nil {
-			installed = a.Installed.Version
+			installed = release(a.Installed.Version, a.Installed.Sequence)
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", a.ID, a.Name, latest, installed, a.Source)
 	}
 	return nil
+}
+
+func release(version string, sequence uint64) string {
+	return fmt.Sprintf("%s (build %d)", version, sequence)
 }
 
 func refresh(args []string) error {

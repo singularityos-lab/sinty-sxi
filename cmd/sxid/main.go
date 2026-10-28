@@ -167,6 +167,21 @@ func (s *service) Install(sender dbus.Sender, id string) *dbus.Error {
 	return nil
 }
 
+func (s *service) update() {
+	for _, id := range s.manager.Updates() {
+		if !s.start(id) {
+			continue
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
+		err := s.manager.Install(ctx, id, nil)
+		cancel()
+		if err == nil {
+			log.Printf("%s: updated", id)
+		}
+		s.done(id, err)
+	}
+}
+
 func (s *service) Remove(sender dbus.Sender, id string) *dbus.Error {
 	if err := s.authorize(sender, "remove applications"); err != nil {
 		return err
@@ -229,6 +244,7 @@ func main() {
 	state := flag.String("state", "/var/lib/sinty/sxi", "state directory")
 	run := flag.String("run", "/run/sxi", "runtime directory")
 	interval := flag.Duration("refresh", 6*time.Hour, "collection refresh interval, 0 disables")
+	update := flag.Bool("update", true, "install new releases of installed applications after each refresh")
 	sources := flag.String("sources", "", "extra directory of collection sources")
 	system := flag.String("system-sources", systemSources, "collection sources shipped with the system image")
 	session := flag.Bool("session", false, "serve on the session bus, for development")
@@ -287,6 +303,9 @@ func main() {
 			log.Printf("refresh: %v", err)
 		}
 		s.changed()
+		if err == nil && *update {
+			s.update()
+		}
 		return err == nil
 	}
 	if *interval > 0 {

@@ -280,6 +280,31 @@ func (m *Manager) Available() []Available {
 	return out
 }
 
+func (m *Manager) Updates() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var ids []string
+	for _, inst := range m.reg.list() {
+		signed := m.indexes[inst.Source]
+		if signed == nil {
+			continue
+		}
+		app := signed.Index.Find(inst.ID)
+		if app == nil {
+			continue
+		}
+		latest := app.Latest(m.cfg.Arch)
+		if latest == nil || latest.Sequence <= inst.Active.Sequence {
+			continue
+		}
+		if inst.Previous != nil && inst.Previous.Sequence >= latest.Sequence {
+			continue
+		}
+		ids = append(ids, inst.ID)
+	}
+	return ids
+}
+
 func (m *Manager) Installed() []Installed {
 	m.mu.Lock()
 	defer m.mu.Unlock()

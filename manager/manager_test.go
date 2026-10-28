@@ -191,6 +191,9 @@ func TestInstallUpdateRollbackRemove(t *testing.T) {
 	if err := m.Install(ctx, "dev.sinty.hello", nil); !errors.Is(err, ErrUpToDate) {
 		t.Fatalf("reinstall: %v", err)
 	}
+	if updates := m.Updates(); len(updates) != 0 {
+		t.Fatalf("updates before a new release = %v", updates)
+	}
 	schemas, _ := filepath.Glob(filepath.Join(base, "run", "share", "glib-2.0", "schemas", "*"))
 	if _, err := exec.LookPath("glib-compile-schemas"); err == nil {
 		if len(schemas) != 2 || filepath.Base(schemas[1]) != "gschemas.compiled" {
@@ -225,6 +228,9 @@ func TestInstallUpdateRollbackRemove(t *testing.T) {
 	if err := m.Refresh(ctx); err != nil {
 		t.Fatal(err)
 	}
+	if updates := m.Updates(); len(updates) != 1 || updates[0] != "dev.sinty.hello" {
+		t.Fatalf("updates after a new release = %v", updates)
+	}
 	if err := m.Install(ctx, "dev.sinty.hello", nil); err != nil {
 		t.Fatal(err)
 	}
@@ -242,6 +248,9 @@ func TestInstallUpdateRollbackRemove(t *testing.T) {
 	script, _ = os.ReadFile(filepath.Join(mount, "Images/amd64/main"))
 	if !strings.Contains(string(script), "one") {
 		t.Fatalf("after rollback the entry is %q", script)
+	}
+	if updates := m.Updates(); len(updates) != 0 {
+		t.Fatalf("a rolled back release is offered again: %v", updates)
 	}
 
 	restarted, err := New(m.cfg)
