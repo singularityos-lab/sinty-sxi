@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	osexec "os/exec"
+	"path/filepath"
 	"sync"
 
 	"github.com/singularityos-lab/sinty-sxi/bundle"
@@ -60,7 +61,12 @@ func (e *ExtractMounter) Mount(imagePath, hashPath string, rootHash [32]byte, na
 		return err
 	}
 	if e.Admit != "" && exec {
-		if out, err := osexec.Command(e.Admit, "mount", target).CombinedOutput(); err != nil {
+		real, err := filepath.EvalSymlinks(target)
+		if err != nil {
+			os.RemoveAll(target)
+			return err
+		}
+		if out, err := osexec.Command(e.Admit, "mount", real).CombinedOutput(); err != nil {
 			os.RemoveAll(target)
 			return fmt.Errorf("manager: admit %s: %v: %s", target, err, out)
 		}
@@ -77,7 +83,9 @@ func (e *ExtractMounter) Release(name, target string, backing ...string) error {
 		return nil
 	}
 	if e.Admit != "" {
-		osexec.Command(e.Admit, "unmount", target).Run()
+		if real, err := filepath.EvalSymlinks(target); err == nil {
+			osexec.Command(e.Admit, "unmount", real).Run()
+		}
 	}
 	bundle.Unseal(target)
 	return os.RemoveAll(target)
