@@ -3,7 +3,9 @@ package manager
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
+	osexec "os/exec"
 	"sync"
 
 	"github.com/singularityos-lab/sinty-sxi/bundle"
@@ -11,6 +13,9 @@ import (
 )
 
 type ExtractMounter struct {
+	// Admit names a helper that seals an extracted application and admits
+	// its code on systems that enforce code signatures.
+	Admit   string
 	mu      sync.Mutex
 	mounted map[string]string
 }
@@ -54,6 +59,12 @@ func (e *ExtractMounter) Mount(imagePath, hashPath string, rootHash [32]byte, na
 	if err := image.Extract(imagePath, target); err != nil {
 		return err
 	}
+	if e.Admit != "" && exec {
+		if out, err := osexec.Command(e.Admit, "mount", target).CombinedOutput(); err != nil {
+			os.RemoveAll(target)
+			return fmt.Errorf("manager: admit %s: %v: %s", target, err, out)
+		}
+	}
 	e.mounted[name] = target
 	return nil
 }
@@ -64,6 +75,9 @@ func (e *ExtractMounter) Release(name, target string, backing ...string) error {
 	delete(e.mounted, name)
 	if _, err := os.Lstat(target); err != nil {
 		return nil
+	}
+	if e.Admit != "" {
+		osexec.Command(e.Admit, "unmount", target).Run()
 	}
 	bundle.Unseal(target)
 	return os.RemoveAll(target)

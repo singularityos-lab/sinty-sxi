@@ -249,6 +249,7 @@ func main() {
 	system := flag.String("system-sources", systemSources, "collection sources shipped with the system image")
 	session := flag.Bool("session", false, "serve on the session bus, for development")
 	extract := flag.Bool("extract", false, "extract images instead of mounting them, for development without root")
+	admit := flag.String("admit", "", "helper that admits extracted code, used with -extract")
 	flag.Parse()
 	log.SetFlags(0)
 	if os.Getenv("DBUS_SYSTEM_BUS_ADDRESS") == "" {
@@ -264,7 +265,7 @@ func main() {
 	}
 	cfg := manager.Config{Roots: *roots, State: *state, Run: *run, Sources: list}
 	if *extract {
-		cfg.Mounter = &manager.ExtractMounter{}
+		cfg.Mounter = &manager.ExtractMounter{Admit: *admit}
 	}
 	m, err := manager.New(cfg)
 	if err != nil {
