@@ -529,6 +529,13 @@ func (m *Manager) Rollback(id string) error {
 		return err
 	}
 	if err := m.activate(app); err != nil {
+		*app.Previous, app.Active = app.Active, current
+		if saveErr := m.reg.save(); saveErr != nil {
+			log.Printf("rollback: %v", saveErr)
+		}
+		if againErr := m.activate(app); againErr != nil {
+			log.Printf("rollback: %v", againErr)
+		}
 		return err
 	}
 	return m.exportSchemas()
