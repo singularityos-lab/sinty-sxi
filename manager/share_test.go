@@ -39,6 +39,24 @@ func TestExportShareRefreshesIconThemes(t *testing.T) {
 	}
 }
 
+func TestExportShareLinksCardsBesideTheirModules(t *testing.T) {
+	run := t.TempDir()
+	m := &Manager{cfg: Config{Run: run}}
+	id := "org.example.notes"
+	cards := filepath.Join(m.appMount(id), "share", "singularity", "cards")
+	modules := filepath.Join(m.appMount(id), "lib", "singularity", "cards")
+	os.MkdirAll(cards, 0o755)
+	os.MkdirAll(modules, 0o755)
+	os.WriteFile(filepath.Join(cards, id+".card"), []byte("[Card]\n"), 0o644)
+	os.WriteFile(filepath.Join(modules, "libnotes-card.so"), []byte{0x7f}, 0o644)
+	m.exportShare(id)
+	for _, name := range []string{id + ".card", "libnotes-card.so"} {
+		if _, err := os.Stat(filepath.Join(m.shareDir(), "singularity", "cards", name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestAutostartEntriesFollowTheApplication(t *testing.T) {
 	run := t.TempDir()
 	m := &Manager{cfg: Config{Run: run}}

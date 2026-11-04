@@ -18,6 +18,7 @@ var shareDirs = []string{
 	"singularity/share-targets",
 	"singularity/files-actions",
 	"singularity/widgets",
+	"singularity/cards",
 }
 
 func (m *Manager) shareDir() string {
@@ -90,9 +91,11 @@ func (m *Manager) exportShare(id string) {
 		}
 		link(s, filepath.Join(m.shareDir(), "dbus-1", "services", filepath.Base(s)))
 	}
-	widgets, _ := filepath.Glob(filepath.Join(root, "lib", "singularity", "widgets", "*.so"))
-	for _, w := range widgets {
-		link(w, filepath.Join(m.shareDir(), "singularity", "widgets", filepath.Base(w)))
+	for _, kind := range []string{"widgets", "cards"} {
+		modules, _ := filepath.Glob(filepath.Join(root, "lib", "singularity", kind, "*.so"))
+		for _, w := range modules {
+			link(w, filepath.Join(m.shareDir(), "singularity", kind, filepath.Base(w)))
+		}
 	}
 	plugins, _ := os.ReadDir(filepath.Join(root, "lib", "singularity", "plugins"))
 	for _, p := range plugins {
