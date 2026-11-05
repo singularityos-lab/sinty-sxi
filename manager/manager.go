@@ -473,6 +473,15 @@ func (m *Manager) Install(ctx context.Context, id string, progress Progress) err
 		progress("activate", 1, 1)
 	}
 	if err := m.activate(next); err != nil {
+		if current != nil {
+			m.reg.Apps[id] = current
+			if serr := m.reg.save(); serr != nil {
+				return errors.Join(err, serr)
+			}
+			if aerr := m.activate(current); aerr != nil {
+				return errors.Join(err, aerr)
+			}
+		}
 		return err
 	}
 	return m.exportSchemas()

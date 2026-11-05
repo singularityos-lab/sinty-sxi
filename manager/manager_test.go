@@ -312,3 +312,94 @@ func TestRejectsBadDownloadsAndOldIndexes(t *testing.T) {
 		t.Fatal("a rejected image was installed")
 	}
 }
+
+type failingMounter struct {
+	Mounter
+	fail bool
+}
+
+func (f *failingMounter) Mount(imagePath, hashPath string, rootHash [32]byte, name, target string, exec bool) error {
+	if f.fail && exec {
+		f.fail = false
+		return errors.New("mount refused")
+	}
+	return f.Mounter.Mount(imagePath, hashPath, rootHash, name, target, exec)
+}
+
+func TestFailedUpdateKeepsThePreviousRelease(t *testing.T) {
+	m, p, server, base := setup(t)
+	ctx := context.Background()
+	mounter := &failingMounter{Mounter: m.cfg.Mounter}
+	m.cfg.Mounter = mounter
+	first := p.release(t, 1, "one")
+	p.publish(t, server.URL, 1, first)
+	if err := m.Refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Install(ctx, "dev.sinty.hello", nil); err != nil {
+		t.Fatal(err)
+	}
+	second := p.release(t, 2, "two")
+	p.publish(t, server.URL, 2, first, second)
+	if err := m.Refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	mounter.fail = true
+	if err := m.Install(ctx, "dev.sinty.hello", nil); err == nil {
+		t.Fatal("the update reported success with a refused mount")
+	}
+	installed := m.Installed()
+	if len(installed) != 1 || installed[0].Active.Sequence != 1 {
+		t.Fatalf("installed after a failed update = %+v", installed)
+	}
+	script, err := os.ReadFile(filepath.Join(base, "run", "apps", "dev.sinty.hello", "Images/amd64/main"))
+	if err != nil || !strings.Contains(string(script), "one") {
+		t.Fatalf("entry after a failed update = %q, %v", script, err)
+	}
+	if updates := m.Updates(); len(updates) != 1 {
+		t.Fatalf("the failed release is not offered again: %v", updates)
+	}
+}
+
+func TestUpdateWhileTheApplicationRuns(t *testing.T) {
+	m, p, server, base := setup(t)
+	ctx := context.Background()
+	busy := filepath.Join(base, "busy")
+	admit := filepath.Join(base, "admit")
+	os.WriteFile(admit, []byte("#!/bin/sh\ncase $1 in\nmount) chmod -R u+w \"$3\"; rm -rf \"$3\"/* && cp -a \"$2\"/. \"$3\"/ ;;\nunmount) [ ! -e "+busy+" ] || exit 1; chmod -R u+w \"$2\"; rm -rf \"$2\"/* ;;\nesac\n"), 0o755)
+	m.cfg.Mounter = &ExtractMounter{Admit: admit}
+	first := p.release(t, 1, "one")
+	p.publish(t, server.URL, 1, first)
+	if err := m.Refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Install(ctx, "dev.sinty.hello", nil); err != nil {
+		t.Fatal(err)
+	}
+	mount := filepath.Join(base, "run", "apps", "dev.sinty.hello")
+	os.WriteFile(busy, nil, 0o644)
+	second := p.release(t, 2, "two")
+	p.publish(t, server.URL, 2, first, second)
+	if err := m.Refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Install(ctx, "dev.sinty.hello", nil); err != nil {
+		t.Fatal(err)
+	}
+	script, err := os.ReadFile(filepath.Join(mount, "Images/amd64/main"))
+	if err != nil || !strings.Contains(string(script), "two") {
+		t.Fatalf("entry after an update over a running copy = %q, %v", script, err)
+	}
+	trees, _ := filepath.Glob(filepath.Join(base, "run", "apps", ".dev.sinty.hello@*"))
+	if len(trees) != 2 {
+		t.Fatalf("release trees while the old copy runs = %v", trees)
+	}
+	os.Remove(busy)
+	if err := m.Remove("dev.sinty.hello"); err != nil {
+		t.Fatal(err)
+	}
+	trees, _ = filepath.Glob(filepath.Join(base, "run", "apps", ".dev.sinty.hello@*"))
+	if _, err := os.Stat(mount); !errors.Is(err, os.ErrNotExist) || len(trees) > 1 {
+		t.Fatalf("after remove: mount %v, trees %v", err, trees)
+	}
+}

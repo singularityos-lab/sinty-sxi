@@ -57,22 +57,49 @@ func (e *ExtractMounter) Mount(imagePath, hashPath string, rootHash [32]byte, na
 	if v.RootHash != rootHash || !bytes.Equal(v.Tree, tree) {
 		return image.ErrVerity
 	}
-	if err := image.Extract(imagePath, target); err != nil {
-		return err
-	}
-	if e.Admit != "" && exec {
-		real, err := filepath.EvalSymlinks(target)
-		if err != nil {
-			os.RemoveAll(target)
+	if e.Admit == "" || !exec {
+		if err := image.Extract(imagePath, target); err != nil {
 			return err
 		}
-		if out, err := osexec.Command(e.Admit, "mount", real).CombinedOutput(); err != nil {
-			os.RemoveAll(target)
-			return fmt.Errorf("manager: admit %s: %v: %s", target, err, out)
-		}
+		e.mounted[name] = target
+		return nil
+	}
+	dir := releaseTree(target, name)
+	bundle.Unseal(dir)
+	if err := os.RemoveAll(dir); err != nil {
+		return err
+	}
+	if err := image.Extract(imagePath, dir); err != nil {
+		os.RemoveAll(dir)
+		return err
+	}
+	if err := os.MkdirAll(target, 0o755); err != nil {
+		os.RemoveAll(dir)
+		return err
+	}
+	realTree, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		os.RemoveAll(dir)
+		return err
+	}
+	realTarget, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		os.RemoveAll(dir)
+		return err
+	}
+	if out, err := osexec.Command(e.Admit, "mount", realTree, realTarget).CombinedOutput(); err != nil {
+		os.RemoveAll(dir)
+		return fmt.Errorf("manager: admit %s: %v: %s", target, err, out)
 	}
 	e.mounted[name] = target
 	return nil
+}
+
+// releaseTree is where an image is extracted before it is mounted onto
+// target: one tree per release slot, so a new release never writes into the
+// tree a running copy of the application still uses.
+func releaseTree(target, name string) string {
+	return filepath.Join(filepath.Dir(target), "."+filepath.Base(target)+"@"+name)
 }
 
 func (e *ExtractMounter) Release(name, target string, backing ...string) error {
@@ -84,8 +111,13 @@ func (e *ExtractMounter) Release(name, target string, backing ...string) error {
 	}
 	if e.Admit != "" {
 		if real, err := filepath.EvalSymlinks(target); err == nil {
-			osexec.Command(e.Admit, "unmount", real).Run()
+			if osexec.Command(e.Admit, "unmount", real).Run() != nil {
+				return errors.New("manager: " + target + " is still in use")
+			}
 		}
+		tree := releaseTree(target, name)
+		bundle.Unseal(tree)
+		os.RemoveAll(tree)
 	}
 	bundle.Unseal(target)
 	return os.RemoveAll(target)
