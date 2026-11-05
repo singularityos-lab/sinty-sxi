@@ -366,8 +366,10 @@ func TestUpdateWhileTheApplicationRuns(t *testing.T) {
 	ctx := context.Background()
 	busy := filepath.Join(base, "busy")
 	admit := filepath.Join(base, "admit")
-	os.WriteFile(admit, []byte("#!/bin/sh\ncase $1 in\nmount) chmod -R u+w \"$3\"; rm -rf \"$3\"/* && cp -a \"$2\"/. \"$3\"/ ;;\nunmount) [ ! -e "+busy+" ] || exit 1; chmod -R u+w \"$2\"; rm -rf \"$2\"/* ;;\nesac\n"), 0o755)
-	m.cfg.Mounter = &ExtractMounter{Admit: admit}
+	table := filepath.Join(base, "mounts")
+	os.WriteFile(table, nil, 0o644)
+	os.WriteFile(admit, []byte("#!/bin/sh\ncase $1 in\nmount) chmod -R u+w \"$3\"; rm -rf \"$3\"/* && cp -a \"$2\"/. \"$3\"/ && echo \"$2 $3\" >> "+table+" ;;\nunmount) [ ! -e "+busy+" ] || exit 1; chmod -R u+w \"$2\"; rm -rf \"$2\"/*; grep -v \" $2\\$\" "+table+" > "+table+".new; mv "+table+".new "+table+" ;;\nesac\n"), 0o755)
+	m.cfg.Mounter = &ExtractMounter{Admit: admit, MountTable: table}
 	first := p.release(t, 1, "one")
 	p.publish(t, server.URL, 1, first)
 	if err := m.Refresh(ctx); err != nil {
@@ -395,6 +397,15 @@ func TestUpdateWhileTheApplicationRuns(t *testing.T) {
 		t.Fatalf("release trees while the old copy runs = %v", trees)
 	}
 	os.Remove(busy)
+	os.WriteFile(table, nil, 0o644)
+	m.cfg.Mounter = &ExtractMounter{Admit: admit, MountTable: table}
+	if err := m.Start(); err != nil {
+		t.Fatal(err)
+	}
+	trees, _ = filepath.Glob(filepath.Join(base, "run", "apps", ".dev.sinty.hello@*"))
+	if len(trees) != 1 {
+		t.Fatalf("release trees after a restart = %v", trees)
+	}
 	if err := m.Remove("dev.sinty.hello"); err != nil {
 		t.Fatal(err)
 	}

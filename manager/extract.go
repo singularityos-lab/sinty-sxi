@@ -7,6 +7,7 @@ import (
 	"os"
 	osexec "os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/singularityos-lab/sinty-sxi/bundle"
@@ -16,9 +17,10 @@ import (
 type ExtractMounter struct {
 	// Admit names a helper that seals an extracted application and admits
 	// its code on systems that enforce code signatures.
-	Admit   string
-	mu      sync.Mutex
-	mounted map[string]string
+	Admit      string
+	MountTable string
+	mu         sync.Mutex
+	mounted    map[string]string
 }
 
 func (e *ExtractMounter) Mount(imagePath, hashPath string, rootHash [32]byte, name, target string, exec bool) error {
@@ -92,7 +94,46 @@ func (e *ExtractMounter) Mount(imagePath, hashPath string, rootHash [32]byte, na
 		return fmt.Errorf("manager: admit %s: %v: %s", target, err, out)
 	}
 	e.mounted[name] = target
+	e.prune(target, dir)
 	return nil
+}
+
+func (e *ExtractMounter) prune(target, keep string) {
+	table := e.MountTable
+	if table == "" {
+		table = "/proc/mounts"
+	}
+	b, err := os.ReadFile(table)
+	if err != nil {
+		return
+	}
+	var sources []string
+	for _, line := range strings.Split(string(b), "\n") {
+		if f := strings.Fields(line); len(f) > 0 {
+			sources = append(sources, f[0])
+		}
+	}
+	trees, _ := filepath.Glob(filepath.Join(filepath.Dir(target), "."+filepath.Base(target)+"@*"))
+	for _, tree := range trees {
+		if tree == keep {
+			continue
+		}
+		real, err := filepath.EvalSymlinks(tree)
+		if err != nil {
+			continue
+		}
+		busy := false
+		for _, src := range sources {
+			if src == real || strings.HasSuffix(src, real) {
+				busy = true
+				break
+			}
+		}
+		if !busy {
+			bundle.Unseal(tree)
+			os.RemoveAll(tree)
+		}
+	}
 }
 
 // releaseTree is where an image is extracted before it is mounted onto
