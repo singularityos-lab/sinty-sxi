@@ -70,7 +70,10 @@ func (m *Manager) export(app *Installed) error {
 	m.unexportAutostart(app.ID)
 	m.exportAutostart(app.ID, entry, icon)
 	out := rewriteDesktop(source, entry, icon, app.ID)
-	return writeAtomic(m.desktopPath(app.ID), out, 0o644)
+	if err := writeAtomic(m.desktopPath(app.ID), out, 0o644); err != nil {
+		return err
+	}
+	return m.refreshMimeCache()
 }
 
 func (m *Manager) iconPath(id string) string {
@@ -90,6 +93,7 @@ func (m *Manager) exportIcon(id, icon string) error {
 
 func (m *Manager) unexport(id string) {
 	os.Remove(m.desktopPath(id))
+	m.refreshMimeCache()
 	os.Remove(m.iconPath(id))
 	m.unexportShare(id)
 	m.unexportAutostart(id)
