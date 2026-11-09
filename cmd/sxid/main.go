@@ -35,6 +35,8 @@ type service struct {
 	manager *manager.Manager
 	mu      sync.Mutex
 	busy    map[string]bool
+	follow  map[string]bool
+	low     bool
 }
 
 func loadSources(system string, dirs ...string) ([]manager.Source, error) {
@@ -128,12 +130,44 @@ func (s *service) start(id string) bool {
 		return false
 	}
 	s.busy[id] = true
+	s.applyPriority()
 	return true
+}
+
+func (s *service) applyPriority() {
+	low := len(s.busy) > 0
+	for id := range s.busy {
+		if s.follow[id] {
+			low = false
+			break
+		}
+	}
+	if low != s.low {
+		s.low = low
+		setBackground(low)
+	}
+}
+
+func (s *service) Follow(sender dbus.Sender, id string, followed bool) *dbus.Error {
+	if err := s.authorize(sender, "follow operations"); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if followed {
+		s.follow[id] = true
+	} else {
+		delete(s.follow, id)
+	}
+	s.applyPriority()
+	return nil
 }
 
 func (s *service) done(id string, err error) {
 	s.mu.Lock()
 	delete(s.busy, id)
+	delete(s.follow, id)
+	s.applyPriority()
 	s.mu.Unlock()
 	message := ""
 	if err != nil {
@@ -228,6 +262,7 @@ func introspection() *introspect.Node {
 					{Name: "Install", Args: []introspect.Arg{str("id")}},
 					{Name: "Remove", Args: []introspect.Arg{str("id")}},
 					{Name: "Rollback", Args: []introspect.Arg{str("id")}},
+					{Name: "Follow", Args: []introspect.Arg{str("id"), {Name: "followed", Type: "b", Direction: "in"}}},
 				},
 				Signals: []introspect.Signal{
 					{Name: "Changed"},
@@ -282,7 +317,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	s := &service{conn: conn, manager: m, busy: map[string]bool{}}
+	s := &service{conn: conn, manager: m, busy: map[string]bool{}, follow: map[string]bool{}}
 	if err := conn.Export(s, objectPath, interfaceName); err != nil {
 		log.Fatal(err)
 	}
