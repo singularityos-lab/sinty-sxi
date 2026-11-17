@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/mirkobrombin/atomloops/boot"
 )
@@ -30,7 +31,7 @@ func Mount(imagePath, hashPath string, rootHash [32]byte, name, target string, e
 		m.release()
 		return nil, err
 	}
-	node, err := boot.OpenVerity(name, m.DataLoop, m.HashLoop, hex.EncodeToString(rootHash[:]))
+	node, err := openVerity(name, m.DataLoop, m.HashLoop, hex.EncodeToString(rootHash[:]))
 	if err != nil {
 		m.release()
 		return nil, err
@@ -52,6 +53,21 @@ func Mount(imagePath, hashPath string, rootHash [32]byte, name, target string, e
 		return nil, fmt.Errorf("image: %w", err)
 	}
 	return m, nil
+}
+
+var verityOpener = boot.OpenVerity
+
+func openVerity(name, data, hash, root string) (string, error) {
+	var node string
+	var err error
+	for attempt := 0; attempt < 5; attempt++ {
+		node, err = verityOpener(name, data, hash, root)
+		if err == nil || !errors.Is(err, syscall.EEXIST) {
+			return node, err
+		}
+		time.Sleep(time.Duration(attempt+1) * 50 * time.Millisecond)
+	}
+	return node, err
 }
 
 func (m *Mounted) release() {
